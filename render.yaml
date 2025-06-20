@@ -1,4 +1,9 @@
-build:
-  commands:
-    - pip install -r requirements.txt
-    - playwright install chromium
+services:
+  - type: web
+    name: irys-faucet-batch
+    env: python
+    buildCommand: |
+      pip install -r requirements.txt
+      playwright install chromium
+    startCommand: python app.py
+    # 其他配置参数可选...
