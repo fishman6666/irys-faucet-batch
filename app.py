@@ -8,7 +8,6 @@ import json
 import re
 import os
 
-# ！！！注意这里新增
 from playwright.sync_api import sync_playwright
 
 app = Flask(__name__)
@@ -24,13 +23,13 @@ def run():
     data = request.get_json(force=True)
     addresses_raw = data.get('addresses', '')
     proxies_raw = data.get('proxies', '')
-    client_key = data.get('client_key', '').strip()
+    client_key = data.get('client_key', '').strip()  # 可留空，无用
 
     addresses = [a.strip() for a in addresses_raw.strip().split('\n') if a.strip()]
     proxies = [p.strip() for p in proxies_raw.strip().split('\n') if p.strip()]
 
-    if not (addresses and proxies and client_key):
-        return "❌ 参数缺失，请确保地址、代理和 clientKey 都填写", 400
+    if not (addresses and proxies):
+        return "❌ 参数缺失，请确保地址和代理都填写", 400
     if len(addresses) != len(proxies):
         return "❌ 地址数量与代理数量不一致", 400
 
@@ -40,7 +39,7 @@ def run():
         def task_worker():
             results = []
             with ThreadPoolExecutor(max_workers=5) as executor:
-                futures = [executor.submit(process_one, i, address, proxies[i], client_key) for i, address in enumerate(addresses)]
+                futures = [executor.submit(process_one, i, address, proxies[i]) for i, address in enumerate(addresses)]
                 for future in futures:
                     try:
                         result = future.result()
@@ -114,7 +113,7 @@ def solve_captcha_with_playwright(address, proxy_url):
         with sync_playwright() as p:
             browser = p.chromium.launch(
                 headless=True,
-                executable_path="/usr/bin/google-chrome-stable",  # Render 部署用 Chrome 路径
+                executable_path="/usr/bin/google-chrome-stable",
                 args=[
                     "--no-sandbox",
                     "--disable-dev-shm-usage",
@@ -122,18 +121,45 @@ def solve_captcha_with_playwright(address, proxy_url):
                 ]
             )
             page = browser.new_page()
-            # 访问领水页面，这里可根据实际需求修改
-            page.goto("https://irys.xyz/faucet")
-            time.sleep(2)
-            # 这里需要根据你实际情况自动输入钱包地址、点按钮（自己补充！）
-            browser.close()
-        return "TODO: CAPTCHA/操作完成！"
-    except Exception as e:
-        return f"Playwright错误: {e}"
+            page.set_extra_http_headers({
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36"
+            })
 
-def process_one(i, address, proxy_line, client_key):
+            page.goto("https://irys.xyz/faucet", timeout=25000)
+            page.wait_for_timeout(2000)
+
+            # 输入钱包地址
+            page.fill("input[name='address']", address)
+            page.wait_for_timeout(600)
+
+            # 自动勾选Turnstile checkbox（如果需要）
+            try:
+                checkbox = page.query_selector("input[type=checkbox]")
+                if checkbox and checkbox.is_visible():
+                    checkbox.click()
+                    page.wait_for_timeout(1200)
+            except Exception:
+                pass  # 没有checkbox则跳过
+
+            # 监听接口响应
+            with page.expect_response("**/api/faucet") as resp_info:
+                page.click("button[type='submit']")
+            resp = resp_info.value
+
+            try:
+                data = resp.json()
+            except Exception as e:
+                browser.close()
+                return {"success": False, "message": f"接口返回异常: {e}"}
+
+            browser.close()
+            return data  # {"success": bool, "message": str, ...}
+
+    except Exception as e:
+        return {"success": False, "message": f"Playwright错误: {e}"}
+
+def process_one(i, address, proxy_line):
     proxy_url = parse_proxy_line(proxy_line)
-    user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36"
     steps = []
 
     steps.append(f"🕐 [{i+1}] 使用代理：{proxy_url or '❌ 代理格式错误'}")
@@ -141,16 +167,14 @@ def process_one(i, address, proxy_line, client_key):
         steps.append(f"❌ {address} 失败，可重试：无效代理格式")
         return "\n".join(steps)
 
-    # Playwright自动打码和自动领水操作（需要你根据实际页面实现！）
-    steps.append("⏳ [Playwright] 打开网页准备操作")
-    captcha_result = solve_captcha_with_playwright(address, proxy_url)
-    steps.append(f"[Playwright] 返回: {captcha_result}")
+    steps.append("⏳ [Playwright] 自动操作领取中……")
+    result = solve_captcha_with_playwright(address, proxy_url)
 
-    # 演示，等你完善后端具体交互
-    if "错误" not in captcha_result:
-        steps.append(f"🎉 {address} 领取成功！（仅演示）")
+    # 接口返回为准
+    if result.get("success"):
+        steps.append(f"🎉 {address} 领取成功！返回: {result.get('message')}")
     else:
-        steps.append(f"❌ {address} 失败，可重试：{captcha_result}")
+        steps.append(f"❌ {address} 失败，可重试：{result.get('message')}")
 
     for s in steps:
         print(f"[{i+1}] {s}")
