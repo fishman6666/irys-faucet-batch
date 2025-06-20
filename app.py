@@ -1,12 +1,9 @@
 from flask import Flask, request, render_template, Response
 from concurrent.futures import ThreadPoolExecutor
 import time
-import httpx
 import threading
 from queue import Queue, Empty
-import json
 import re
-import os
 
 from playwright.sync_api import sync_playwright
 
@@ -113,7 +110,6 @@ def solve_captcha_with_playwright(address, proxy_url):
         with sync_playwright() as p:
             browser = p.chromium.launch(
                 headless=True,
-                executable_path="/usr/bin/google-chrome-stable",
                 args=[
                     "--no-sandbox",
                     "--disable-dev-shm-usage",
