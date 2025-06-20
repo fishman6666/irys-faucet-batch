@@ -2,44 +2,153 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>批量自动领取工具</title>
+  <title>Minecraft 批量领取工具</title>
+  <!-- 引入 Minecraft 字体 -->
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
   <style>
-    body { background: #1a1a1a; color: #e5ffe5; font-family: "Consolas", "Menlo", monospace; padding: 32px; }
-    h2 { color: #93ff6f; }
-    textarea, input { width: 100%; margin-top: 10px; background: #222; color: #8ffe8f; border: 1px solid #444; border-radius: 4px; padding: 8px; font-size: 15px; }
-    button { background: #59dd75; color: #111; border: none; border-radius: 4px; padding: 10px 32px; margin-top: 16px; font-weight: bold; cursor: pointer; }
-    button:active { background: #338744; }
-    #output { white-space: pre-wrap; margin-top: 28px; background: #181818; border: 1px solid #2a2a2a; border-radius: 8px; min-height: 200px; padding: 14px; font-size: 15px; }
+    body {
+      background: #232d1b url("https://minecraft.wiki/images/Grass_Block_BE2.png?edb8f") repeat;
+      color: #e4ffba;
+      font-family: 'Press Start 2P', 'Consolas', 'Menlo', monospace;
+      padding: 0;
+      margin: 0;
+      min-height: 100vh;
+    }
+    .mc-container {
+      max-width: 660px;
+      margin: 48px auto 0 auto;
+      background: rgba(34,44,21,0.98);
+      border: 6px solid #76c74c;
+      border-radius: 0;
+      box-shadow: 0 8px 40px #000a;
+      padding: 40px 32px 32px 32px;
+      position: relative;
+    }
+    h2 {
+      font-family: 'Press Start 2P', monospace;
+      color: #97e867;
+      font-size: 26px;
+      letter-spacing: 2px;
+      margin-bottom: 25px;
+      text-shadow: 2px 2px #233b0c, 0 2px 4px #141e08;
+      text-align: center;
+    }
+    label {
+      font-size: 14px;
+      letter-spacing: 1px;
+      color: #d0ff9e;
+      margin-bottom: 3px;
+      display: block;
+    }
+    textarea, input[type="text"], input[type="password"], input[type="email"], input[type="number"], input {
+      width: 100%;
+      background: #384621;
+      color: #a7f05b;
+      border: 3px solid #b0ff82;
+      border-radius: 0;
+      padding: 10px 8px 10px 8px;
+      margin-top: 10px;
+      margin-bottom: 15px;
+      font-size: 14px;
+      font-family: 'Press Start 2P', monospace;
+      box-sizing: border-box;
+      outline: none;
+      transition: border 0.2s;
+      box-shadow: 0 1px 4px #171e10;
+    }
+    textarea:focus, input:focus {
+      border: 3px solid #50ff19;
+    }
+    button {
+      background: #4ee34d;
+      color: #222;
+      border: 3px solid #161e10;
+      border-radius: 0;
+      padding: 13px 0;
+      margin-top: 15px;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 15px;
+      width: 100%;
+      letter-spacing: 2px;
+      box-shadow: 0 2px 0 #171e10;
+      cursor: pointer;
+      transition: background 0.1s;
+      margin-bottom: 10px;
+    }
+    button:hover {
+      background: #7cff6e;
+      color: #0d2c0e;
+    }
+    .mc-btn-row {
+      display: flex;
+      gap: 12px;
+    }
+    .mc-btn-row button {
+      flex: 1;
+      margin-top: 0;
+    }
+    #output {
+      white-space: pre-wrap;
+      margin-top: 32px;
+      background: #1b2315e6;
+      border: 3px solid #76c74c;
+      border-radius: 0;
+      min-height: 200px;
+      padding: 17px;
+      font-size: 13px;
+      font-family: 'Consolas', 'Menlo', monospace;
+      box-shadow: 0 2px 10px #000a;
+      color: #eaffc8;
+    }
     .txhash { color: #ffe066; font-weight: bold; }
-    .fail { color: #ff5e5e; }
-    .heartbeat { color: #27bbff; }
-    .success { color: #6cff70; }
-    .section-title { font-weight:bold; color:#ffe066; font-size: 17px; margin: 16px 0 4px 0;}
-    .copy-btn { background: #ffe066; color: #111; margin-left: 8px; border-radius: 4px; padding: 6px 14px; font-size:14px; cursor:pointer;}
-    .copy-btn:active { background: #ccbe57; }
-    .count-label { color:#6cff70; margin-bottom:5px; font-size: 14px; }
+    .fail { color: #ff6767; }
+    .heartbeat { color: #44c1ff; }
+    .success { color: #95ff65; }
+    .section-title { font-weight:bold; color:#f8e362; font-size: 15px; margin: 18px 0 4px 0;}
+    .copy-btn { background: #ffe066 !important; color: #262d14 !important; border: 3px solid #ba9f36 !important; }
+    .copy-btn:hover { background: #ffe999 !important; }
+    .count-label { color:#8fff70; margin-bottom:7px; font-size: 13px; }
     .count-label span { color: #ffe066; }
     .count-warn { color: #ff5e5e; font-weight:bold; margin-left:10px;}
+    .mc-footer {
+      margin-top: 45px;
+      text-align: center;
+      color: #71bf41;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 12px;
+      opacity: .7;
+    }
+    @media (max-width: 700px) {
+      .mc-container { padding: 18px 3vw; }
+    }
   </style>
 </head>
 <body>
-  <h2>批量自动领取工具</h2>
-  <form id="mainForm" autocomplete="off">
-    <label>钱包地址（每行一个）:</label><br>
-    <textarea id="addresses" rows="5" placeholder="0x..."></textarea><br>
-    <div id="addresses_count" class="count-label"></div>
+  <div class="mc-container">
+    <h2>🌳 Minecraft 自动批量领取</h2>
+    <form id="mainForm" autocomplete="off">
+      <label>钱包地址（每行一个）</label>
+      <textarea id="addresses" rows="5" placeholder="0x..."></textarea>
+      <div id="addresses_count" class="count-label"></div>
 
-    <label>代理列表（ip:port:user:pass[:SOCKS5]）:</label><br>
-    <textarea id="proxies" rows="5" placeholder="ip:端口:账号:密码 或 ip:端口:账号:密码:SOCKS5"></textarea><br>
-    <div id="proxies_count" class="count-label"></div>
+      <label>代理列表（ip:port:user:pass[:SOCKS5]）</label>
+      <textarea id="proxies" rows="5" placeholder="ip:端口:账号:密码 或 ip:端口:账号:密码:SOCKS5"></textarea>
+      <div id="proxies_count" class="count-label"></div>
 
-    <label>YesCaptcha API Key:</label><br>
-    <input id="clientKey" placeholder="API Key"><br>
-    <button type="submit">开始领取</button>
-    <button type="button" id="btn-query">查询历史结果</button>
-    <button type="button" class="copy-btn" id="btn-copy-fail">复制失败地址</button>
-  </form>
-  <div id="output"></div>
+      <label>YesCaptcha API Key</label>
+      <input id="clientKey" placeholder="API Key">
+
+      <div class="mc-btn-row">
+        <button type="submit">开始领取</button>
+        <button type="button" id="btn-query">查询结果</button>
+        <button type="button" class="copy-btn" id="btn-copy-fail">复制失败地址</button>
+      </div>
+    </form>
+    <div id="output"></div>
+    <div class="mc-footer">
+      © 2025 我的世界批量水龙头工具
+    </div>
+  </div>
   <script>
     document.addEventListener("DOMContentLoaded", function() {
       function updateCounts() {
@@ -124,7 +233,7 @@
 
       document.getElementById("btn-copy-fail").onclick = function() {
         if (!window.lastFailLines) {
-          alert("请先点击【查询历史结果】再复制唯一失败地址！");
+          alert("请先点击【查询结果】再复制唯一失败地址！");
           return;
         }
         navigator.clipboard.writeText(window.lastFailLines).then(()=>{
