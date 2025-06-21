@@ -1,5 +1,6 @@
 flask
-httpx[socks]==0.23.3
 gunicorn
-gevent
 playwright
+httpx
+gevent
+# 还有你用到的其它依赖，别漏
