@@ -105,12 +105,22 @@ def parse_proxy_line(proxy_line):
     except Exception:
         return None
 
-# 只改下面这个函数
+# 只改下面这个函数，修复 Playwright 找不到 Chromium 路径的问题
 def solve_captcha_with_playwright(address, proxy_url):
     try:
+        # 显式指定 Chromium 可执行文件路径
+        chromium_path = "/opt/render/.cache/ms-playwright/chromium-1169/chrome-linux/chrome"
+        from pathlib import Path
+        # 如果找不到，遍历寻找
+        if not Path(chromium_path).exists():
+            import glob
+            chrome_glob = glob.glob("/opt/render/.cache/ms-playwright/chromium-*/chrome-linux/chrome")
+            if chrome_glob:
+                chromium_path = chrome_glob[0]
         with sync_playwright() as p:
             browser = p.chromium.launch(
                 headless=True,
+                executable_path=chromium_path,
                 args=[
                     "--no-sandbox",
                     "--disable-dev-shm-usage",
@@ -129,14 +139,14 @@ def solve_captcha_with_playwright(address, proxy_url):
             page.fill("input[name='address']", address)
             page.wait_for_timeout(600)
 
-            # 自动勾选Turnstile checkbox（如果需要）
+            # 自动勾选Turnstile checkbox（如果有）
             try:
                 checkbox = page.query_selector("input[type=checkbox]")
                 if checkbox and checkbox.is_visible():
                     checkbox.click()
                     page.wait_for_timeout(1200)
             except Exception:
-                pass  # 没有checkbox则跳过
+                pass
 
             # 监听接口响应
             with page.expect_response("**/api/faucet") as resp_info:
@@ -150,7 +160,7 @@ def solve_captcha_with_playwright(address, proxy_url):
                 return {"success": False, "message": f"接口返回异常: {e}"}
 
             browser.close()
-            return data  # {"success": bool, "message": str, ...}
+            return data
 
     except Exception as e:
         return {"success": False, "message": f"Playwright错误: {e}"}
