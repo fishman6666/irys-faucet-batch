@@ -6,7 +6,6 @@ from queue import Queue, Empty
 import re
 
 from playwright.sync_api import sync_playwright
-from playwright._impl._driver import compute_browser_executable_path  # 新增
 
 app = Flask(__name__)
 
@@ -106,13 +105,12 @@ def parse_proxy_line(proxy_line):
     except Exception:
         return None
 
+# 只改下面这个函数
 def solve_captcha_with_playwright(address, proxy_url):
     try:
         with sync_playwright() as p:
-            chromium_path = compute_browser_executable_path("chromium")  # 新增：获取chromium路径
             browser = p.chromium.launch(
                 headless=True,
-                executable_path=chromium_path,  # 强制指定chromium
                 args=[
                     "--no-sandbox",
                     "--disable-dev-shm-usage",
