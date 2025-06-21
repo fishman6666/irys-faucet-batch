@@ -25,10 +25,10 @@ def run():
     addresses = [a.strip() for a in addresses_raw.strip().split('\n') if a.strip()]
     proxies = [p.strip() for p in proxies_raw.strip().split('\n') if p.strip()]
 
-    if not (addresses and proxies):
-        return "❌ 参数缺失，请确保地址和代理都填写", 400
-    if len(addresses) != len(proxies):
-        return "❌ 地址数量与代理数量不一致", 400
+    if not addresses:
+        return "❌ 参数缺失，请确保地址填写", 400
+    # proxies 允许为空，也允许数量和地址数量不一致
+    # 如果有代理就一一对应，没有就全部用本地
 
     def event_stream():
         q = Queue()
@@ -36,7 +36,10 @@ def run():
         def task_worker():
             results = []
             with ThreadPoolExecutor(max_workers=5) as executor:
-                futures = [executor.submit(process_one, i, address, proxies[i]) for i, address in enumerate(addresses)]
+                # zip_longest自动填None
+                from itertools import zip_longest
+                futures = [executor.submit(process_one, i, address, proxies[i] if i < len(proxies) else None)
+                           for i, address in enumerate(addresses)]
                 for future in futures:
                     try:
                         result = future.result()
@@ -93,29 +96,38 @@ def results():
     return resp
 
 def parse_proxy_line(proxy_line):
+    if not proxy_line:
+        return None
     try:
         parts = proxy_line.strip().split(":")
         if len(parts) == 5 and parts[-1].upper() == "SOCKS5":
             host, port, user, pwd, _ = parts
+            return f"socks5://{user}:{pwd}@{host}:{port}"
         elif len(parts) == 4:
             host, port, user, pwd = parts
+            return f"socks5://{user}:{pwd}@{host}:{port}"
         else:
             return None
-        return f"socks5://{user}:{pwd}@{host}:{port}"
     except Exception:
         return None
 
-# 只改这里！不要再指定 executable_path
 def solve_captcha_with_playwright(address, proxy_url):
     try:
+        chromium_path = "/opt/render/.cache/ms-playwright/chromium-1169/chrome-linux/chrome"
+        from pathlib import Path
+        if not Path(chromium_path).exists():
+            import glob
+            chrome_glob = glob.glob("/opt/render/.cache/ms-playwright/chromium-*/chrome-linux/chrome")
+            if chrome_glob:
+                chromium_path = chrome_glob[0]
         with sync_playwright() as p:
+            args = ["--no-sandbox", "--disable-dev-shm-usage"]
+            if proxy_url:
+                args.append(f'--proxy-server={proxy_url}')
             browser = p.chromium.launch(
                 headless=True,
-                args=[
-                    "--no-sandbox",
-                    "--disable-dev-shm-usage",
-                    f'--proxy-server={proxy_url}' if proxy_url else "",
-                ]
+                executable_path=chromium_path,
+                args=args
             )
             page = browser.new_page()
             page.set_extra_http_headers({
@@ -124,12 +136,8 @@ def solve_captcha_with_playwright(address, proxy_url):
 
             page.goto("https://irys.xyz/faucet", timeout=25000)
             page.wait_for_timeout(2000)
-
-            # 输入钱包地址
             page.fill("input[name='address']", address)
             page.wait_for_timeout(600)
-
-            # 自动勾选Turnstile checkbox（如果有）
             try:
                 checkbox = page.query_selector("input[type=checkbox]")
                 if checkbox and checkbox.is_visible():
@@ -138,7 +146,6 @@ def solve_captcha_with_playwright(address, proxy_url):
             except Exception:
                 pass
 
-            # 监听接口响应
             with page.expect_response("**/api/faucet") as resp_info:
                 page.click("button[type='submit']")
             resp = resp_info.value
@@ -156,18 +163,14 @@ def solve_captcha_with_playwright(address, proxy_url):
         return {"success": False, "message": f"Playwright错误: {e}"}
 
 def process_one(i, address, proxy_line):
-    proxy_url = parse_proxy_line(proxy_line)
+    proxy_url = parse_proxy_line(proxy_line) if proxy_line else None
     steps = []
 
-    steps.append(f"🕐 [{i+1}] 使用代理：{proxy_url or '❌ 代理格式错误'}")
-    if not proxy_url:
-        steps.append(f"❌ {address} 失败，可重试：无效代理格式")
-        return "\n".join(steps)
-
+    steps.append(f"🕐 [{i+1}] 使用代理：{proxy_url or '无（本机直连）'}")
+    # 允许无代理直接跑
     steps.append("⏳ [Playwright] 自动操作领取中……")
     result = solve_captcha_with_playwright(address, proxy_url)
 
-    # 接口返回为准
     if result.get("success"):
         steps.append(f"🎉 {address} 领取成功！返回: {result.get('message')}")
     else:
