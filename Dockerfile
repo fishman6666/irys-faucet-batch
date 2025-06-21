@@ -9,21 +9,15 @@ RUN apt-get update && \
     libappindicator3-1 libu2f-udev xvfb && \
     rm -rf /var/lib/apt/lists/*
 
-# 创建工作目录
 WORKDIR /app
-
-# 拷贝代码
 COPY . .
 
-# 安装 Python 依赖
+# 这行就够了，requirements.txt 里有 playwright 就能安装
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 安装 Playwright 浏览器依赖和 Chromium
-RUN pip install playwright && \
-    playwright install chromium
+# 安装 Chromium 浏览器
+RUN playwright install chromium
 
-# 容器暴露端口（和 app.py 端口一致）
 EXPOSE 10000
 
-# 启动命令
 CMD ["gunicorn", "-b", "0.0.0.0:10000", "app:app"]
